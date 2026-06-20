@@ -1,0 +1,725 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>YouTube 영어학습</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', 'Apple SD Gothic Neo', sans-serif;
+      background: #0f0f14;
+      color: #e8e8f0;
+      min-height: 100vh;
+    }
+
+    header {
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      padding: 18px 24px;
+      border-bottom: 1px solid #2a2a4a;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    header h1 {
+      font-size: 1.3rem;
+      font-weight: 700;
+      color: #a78bfa;
+      letter-spacing: -0.3px;
+    }
+    header span { font-size: 1.4rem; }
+
+    .main {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 28px 16px;
+      gap: 24px;
+      max-width: 900px;
+      margin: 0 auto;
+    }
+
+    /* URL 입력 */
+    .url-form {
+      width: 100%;
+      display: flex;
+      gap: 10px;
+    }
+    .url-form input {
+      flex: 1;
+      padding: 12px 16px;
+      background: #1e1e32;
+      border: 1.5px solid #2e2e50;
+      border-radius: 10px;
+      color: #e8e8f0;
+      font-size: 0.95rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .url-form input:focus { border-color: #7c3aed; }
+    .url-form input::placeholder { color: #555580; }
+    .url-form button {
+      padding: 12px 22px;
+      background: #7c3aed;
+      border: none;
+      border-radius: 10px;
+      color: #fff;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+      white-space: nowrap;
+    }
+    .url-form button:hover { background: #6d28d9; }
+    .url-form button:disabled { background: #3a2060; cursor: not-allowed; }
+
+    .error-msg {
+      width: 100%;
+      background: #2d1b1b;
+      border: 1px solid #6b2020;
+      border-radius: 8px;
+      padding: 12px 16px;
+      color: #f87171;
+      font-size: 0.9rem;
+      display: none;
+    }
+
+    /* 플레이어 + 스크립트 레이아웃 */
+    .content-area {
+      width: 100%;
+      display: none;
+      gap: 20px;
+      flex-direction: column;
+    }
+    .content-area.visible { display: flex; }
+
+    /* 유튜브 플레이어 */
+    .player-wrap {
+      width: 100%;
+      display: flex;
+      justify-content: center;
+    }
+    .player-container {
+      position: relative;
+      width: 480px;
+      height: 854px;
+      background: #000;
+      border-radius: 14px;
+      overflow: hidden;
+      box-shadow: 0 8px 40px rgba(124,58,237,0.25);
+    }
+    #yt-player {
+      width: 100%;
+      height: 100%;
+    }
+
+    /* 스크립트 패널 */
+    .script-panel {
+      width: 100%;
+      background: #16162a;
+      border: 1px solid #2a2a4a;
+      border-radius: 14px;
+      overflow: hidden;
+    }
+    .script-header {
+      padding: 14px 18px;
+      background: #1a1a2e;
+      border-bottom: 1px solid #2a2a4a;
+      font-size: 0.85rem;
+      color: #8888bb;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .script-header strong { color: #a78bfa; }
+    .script-list {
+      max-height: 420px;
+      overflow-y: auto;
+      padding: 8px 0;
+    }
+    .script-list::-webkit-scrollbar { width: 4px; }
+    .script-list::-webkit-scrollbar-track { background: transparent; }
+    .script-list::-webkit-scrollbar-thumb { background: #3a3a6a; border-radius: 4px; }
+
+    .segment {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 10px 18px;
+      cursor: pointer;
+      border-radius: 8px;
+      margin: 2px 8px;
+      transition: background 0.15s;
+    }
+    .segment:hover { background: #1e1e38; }
+    .segment.active {
+      background: #22204a;
+      border-left: 3px solid #7c3aed;
+      margin-left: 5px;
+    }
+    .seg-time {
+      font-size: 0.72rem;
+      color: #6666aa;
+      min-width: 38px;
+      padding-top: 2px;
+      font-variant-numeric: tabular-nums;
+    }
+    .seg-text {
+      font-size: 0.95rem;
+      line-height: 1.55;
+      color: #d0d0f0;
+    }
+    .segment.active .seg-text { color: #c4b5fd; }
+
+    /* 해설 패널 */
+    .explain-panel {
+      width: 100%;
+      background: #12122a;
+      border: 1.5px solid #4c1d95;
+      border-radius: 14px;
+      overflow: hidden;
+      display: none;
+    }
+    .explain-panel.visible { display: block; }
+    .explain-header {
+      padding: 10px 18px;
+      background: #1e1040;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      border-bottom: 1px solid #4c1d95;
+    }
+    .explain-header span.label {
+      font-size: 0.8rem;
+      color: #8888bb;
+    }
+    .explain-header .close-btn {
+      margin-left: auto;
+      background: none;
+      border: none;
+      color: #7777aa;
+      font-size: 1.1rem;
+      cursor: pointer;
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+    .explain-header .close-btn:hover { color: #fff; background: #333; }
+
+    /* 단락 텍스트 (드래그 가능) */
+    .explain-paragraph {
+      padding: 14px 18px;
+      font-size: 1.05rem;
+      line-height: 1.8;
+      color: #c4b5fd;
+      font-style: italic;
+      user-select: text;
+      cursor: text;
+      border-bottom: 1px solid #2a2a4a;
+    }
+    .explain-hint {
+      padding: 8px 18px;
+      font-size: 0.78rem;
+      color: #555588;
+      border-bottom: 1px solid #1e1e38;
+    }
+    .explain-hint kbd {
+      background: #2a2a4a;
+      border: 1px solid #4a4a7a;
+      border-radius: 4px;
+      padding: 1px 6px;
+      font-size: 0.76rem;
+      color: #9999cc;
+    }
+    .explain-result {
+      padding: 14px 18px;
+      font-size: 0.9rem;
+      line-height: 1.75;
+      color: #cccce8;
+      white-space: pre-wrap;
+      min-height: 40px;
+    }
+    .explain-result.loading {
+      color: #7777aa;
+      font-style: italic;
+    }
+    .explain-selected-label {
+      padding: 8px 18px 0;
+      font-size: 0.78rem;
+      color: #8888bb;
+    }
+    .explain-selected-text {
+      margin: 4px 18px 0;
+      padding: 6px 12px;
+      background: #22204a;
+      border-left: 3px solid #7c3aed;
+      border-radius: 4px;
+      font-size: 0.9rem;
+      color: #e0d0ff;
+      font-style: italic;
+    }
+
+    /* 마크다운 스타일 */
+    .explain-result b, .explain-result strong { color: #a78bfa; }
+
+    .hint {
+      width: 100%;
+      text-align: center;
+      font-size: 0.82rem;
+      color: #44447a;
+      padding: 4px 0;
+    }
+
+    /* 히스토리 패널 */
+    .history-panel {
+      width: 100%;
+      background: #16162a;
+      border: 1px solid #2a2a4a;
+      border-radius: 14px;
+      overflow: hidden;
+    }
+    .history-header {
+      padding: 12px 18px;
+      background: #1a1a2e;
+      border-bottom: 1px solid #2a2a4a;
+      font-size: 0.85rem;
+      color: #8888bb;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .history-header strong { color: #a78bfa; }
+    .history-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+    .history-list::-webkit-scrollbar { width: 4px; }
+    .history-list::-webkit-scrollbar-thumb { background: #3a3a6a; border-radius: 4px; }
+    .history-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 14px;
+      cursor: pointer;
+      border-bottom: 1px solid #1e1e38;
+      transition: background 0.15s;
+    }
+    .history-item:last-child { border-bottom: none; }
+    .history-item:hover { background: #1e1e38; }
+    .history-thumb {
+      width: 72px;
+      height: 40px;
+      object-fit: cover;
+      border-radius: 6px;
+      flex-shrink: 0;
+      background: #222;
+    }
+    .history-info { flex: 1; min-width: 0; }
+    .history-title {
+      font-size: 0.88rem;
+      color: #d0d0f0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .history-meta {
+      font-size: 0.72rem;
+      color: #55558a;
+      margin-top: 3px;
+    }
+    .history-del {
+      background: none;
+      border: none;
+      color: #44446a;
+      font-size: 1rem;
+      cursor: pointer;
+      padding: 4px 6px;
+      border-radius: 4px;
+      flex-shrink: 0;
+    }
+    .history-del:hover { color: #f87171; background: #2a1a1a; }
+    .history-empty {
+      padding: 18px;
+      text-align: center;
+      color: #44447a;
+      font-size: 0.85rem;
+    }
+
+    @media (min-width: 700px) {
+      .content-area { flex-direction: row; flex-wrap: wrap; }
+      .player-wrap { width: auto; }
+      .script-panel { flex: 1; min-width: 300px; }
+      .explain-panel { width: 100%; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <span>🎬</span>
+  <h1>YouTube 영어학습</h1>
+</header>
+
+<div class="main">
+  <div class="url-form">
+    <input id="url-input" type="text" placeholder="YouTube Shorts URL을 붙여넣으세요 (예: https://youtube.com/shorts/...)" />
+    <button id="load-btn" onclick="loadTranscript()">불러오기</button>
+  </div>
+
+  <div class="error-msg" id="error-msg"></div>
+
+  <div class="content-area" id="content-area">
+    <div class="player-wrap">
+      <div class="player-container">
+        <div id="yt-player"></div>
+      </div>
+    </div>
+    <div class="script-panel">
+      <div class="script-header">
+        📝 영어 스크립트 &nbsp;·&nbsp; <strong>클릭</strong> 재생 &nbsp;/&nbsp; <strong>더블클릭</strong> AI 해설
+      </div>
+      <div class="script-list" id="script-list"></div>
+    </div>
+  </div>
+
+  <div class="explain-panel" id="explain-panel">
+    <div class="explain-header">
+      <span style="font-size:1rem;">💡</span>
+      <span class="label">문장을 드래그 후 <kbd>Enter</kbd> 로 해설</span>
+      <button class="close-btn" onclick="closeExplain()">✕</button>
+    </div>
+    <div class="explain-paragraph" id="explain-paragraph"></div>
+    <div class="explain-hint">원하는 부분만 드래그로 선택 후 <kbd>Enter</kbd> 키를 누르면 해당 부분만 해설합니다.</div>
+    <div class="explain-selected-label" id="explain-selected-label" style="display:none">선택된 문장</div>
+    <div class="explain-selected-text" id="explain-selected-text" style="display:none"></div>
+    <div class="explain-result" id="explain-result"></div>
+  </div>
+
+  <div class="hint" id="hint-text"></div>
+
+  <div class="history-panel" id="history-panel" style="display:none">
+    <div class="history-header">
+      🕘 &nbsp;<strong>불러온 영상 목록</strong>
+    </div>
+    <div class="history-list" id="history-list"></div>
+  </div>
+</div>
+
+<script>
+  let ytPlayer = null;
+  let segments = [];
+  let activeIndex = -1;
+  let progressTimer = null;
+
+  // YouTube IFrame API
+  const tag = document.createElement('script');
+  tag.src = 'https://www.youtube.com/iframe_api';
+  document.head.appendChild(tag);
+
+  function onYouTubeIframeAPIReady() {}
+
+  function initPlayer(videoId) {
+    if (ytPlayer) {
+      ytPlayer.destroy();
+      ytPlayer = null;
+    }
+    clearInterval(progressTimer);
+
+    ytPlayer = new YT.Player('yt-player', {
+      videoId: videoId,
+      playerVars: { playsinline: 1, rel: 0, modestbranding: 1 },
+      events: {
+        onReady: () => {
+          startProgressTracking();
+        }
+      }
+    });
+  }
+
+  function startProgressTracking() {
+    clearInterval(progressTimer);
+    progressTimer = setInterval(() => {
+      if (!ytPlayer || typeof ytPlayer.getCurrentTime !== 'function') return;
+      const t = ytPlayer.getCurrentTime();
+      highlightActive(t);
+    }, 300);
+  }
+
+  function highlightActive(t) {
+    let idx = -1;
+    for (let i = 0; i < segments.length; i++) {
+      if (t >= segments[i].start && t < segments[i].start + segments[i].duration + 0.5) {
+        idx = i;
+      }
+    }
+    if (idx === activeIndex) return;
+    activeIndex = idx;
+    document.querySelectorAll('.segment').forEach((el, i) => {
+      el.classList.toggle('active', i === idx);
+    });
+    if (idx >= 0) {
+      const el = document.querySelectorAll('.segment')[idx];
+      el && el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }
+
+  async function loadTranscript() {
+    const url = document.getElementById('url-input').value.trim();
+    if (!url) return;
+
+    const btn = document.getElementById('load-btn');
+    btn.disabled = true;
+    btn.textContent = '불러오는 중…';
+    showError('');
+    closeExplain();
+
+    try {
+      const res = await fetch('/api/transcript', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url })
+      });
+      const data = await res.json();
+      if (data.error) { showError(data.error); return; }
+
+      segments = mergeSentences(data.segments);
+      renderScript(segments);
+      initPlayer(data.video_id);
+      document.getElementById('content-area').classList.add('visible');
+      const cacheNote = data.from_cache ? ' (저장된 번역 사용)' : (data.translated ? ' (AI 영문 번역)' : '');
+      document.getElementById('hint-text').textContent = `총 ${segments.length}개 문장${cacheNote} · 클릭 재생 / 우클릭 AI 해설`;
+
+      // 히스토리 저장 (localStorage)
+      historySaveItem({
+        video_id: data.video_id,
+        title: data.title || data.video_id,
+        translated: data.translated || false,
+        saved_at: new Date().toISOString(),
+      });
+      loadHistory();
+    } catch(e) {
+      showError('서버 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = '불러오기';
+    }
+  }
+
+  // 잘린 자막 조각들을 완전한 문장으로 합치기
+  function mergeSentences(segs) {
+    const result = [];
+    let current = null;
+
+    for (let i = 0; i < segs.length; i++) {
+      const seg = segs[i];
+      const next = segs[i + 1];
+
+      if (!current) {
+        current = { ...seg };
+      } else {
+        current.text += ' ' + seg.text;
+        current.duration = (seg.start + seg.duration) - current.start;
+      }
+
+      const endsWithPunct = /[.?!][\s"']*$/.test(current.text.trim());
+      // 다음 세그먼트와 시간 간격이 1.5초 이상이면 끊기
+      const bigGap = next ? (next.start - (seg.start + seg.duration)) > 1.5 : true;
+      // 누적 재생시간이 8초 초과하면 마침표 위치에서만 끊기
+      const tooLong = current.duration > 8 && endsWithPunct;
+
+      if (endsWithPunct || bigGap || tooLong) {
+        result.push(current);
+        current = null;
+      }
+    }
+
+    if (current) result.push(current);
+    return result;
+  }
+
+  function renderScript(segs) {
+    const list = document.getElementById('script-list');
+    list.innerHTML = '';
+    segs.forEach((seg, i) => {
+      const div = document.createElement('div');
+      div.className = 'segment';
+      div.innerHTML = `
+        <span class="seg-time">${formatTime(seg.start)}</span>
+        <span class="seg-text">${escHtml(seg.text)}</span>
+      `;
+      div.addEventListener('click', () => {
+        seekTo(seg.start);
+      });
+      div.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        showExplain(seg, segs, i);
+      });
+      list.appendChild(div);
+    });
+  }
+
+  function seekTo(t) {
+    if (ytPlayer && typeof ytPlayer.seekTo === 'function') {
+      ytPlayer.seekTo(t, true);
+      ytPlayer.playVideo();
+    }
+  }
+
+  function showExplain(seg, segs, idx) {
+    const panel = document.getElementById('explain-panel');
+    const paraEl = document.getElementById('explain-paragraph');
+    const resultEl = document.getElementById('explain-result');
+    const selLabel = document.getElementById('explain-selected-label');
+    const selText = document.getElementById('explain-selected-text');
+
+    paraEl.textContent = seg.text;
+    resultEl.textContent = '';
+    resultEl.className = 'explain-result';
+    resultEl.innerHTML = '';
+    selLabel.style.display = 'none';
+    selText.style.display = 'none';
+    selText.textContent = '';
+    window.getSelection()?.removeAllRanges();
+    panel.classList.add('visible');
+    panel._context = [segs[idx - 1]?.text, segs[idx + 1]?.text].filter(Boolean).join(' / ');
+
+    panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  async function runExplain() {
+    const panel = document.getElementById('explain-panel');
+    if (!panel.classList.contains('visible')) return;
+
+    const paraEl = document.getElementById('explain-paragraph');
+    const resultEl = document.getElementById('explain-result');
+    const selLabel = document.getElementById('explain-selected-label');
+    const selText = document.getElementById('explain-selected-text');
+
+    // 드래그 선택 텍스트 가져오기
+    const selection = window.getSelection();
+    const selected = selection ? selection.toString().trim() : '';
+    const target = selected || paraEl.textContent.trim();
+
+    selLabel.style.display = 'block';
+    selText.style.display = 'block';
+    selText.textContent = target;
+    resultEl.textContent = '해설을 불러오는 중…';
+    resultEl.className = 'explain-result loading';
+
+    try {
+      const res = await fetch('/api/explain', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sentence: target, context: panel._context || '' })
+      });
+      const data = await res.json();
+      resultEl.className = 'explain-result';
+      resultEl.innerHTML = data.error ? '오류: ' + escHtml(data.error) : renderMarkdown(data.explanation);
+    } catch(e) {
+      resultEl.className = 'explain-result';
+      resultEl.textContent = '해설을 불러오지 못했습니다.';
+    }
+  }
+
+  function closeExplain() {
+    document.getElementById('explain-panel').classList.remove('visible');
+  }
+
+  // Enter 키로 해설 실행
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      runExplain();
+    }
+  });
+
+  function showError(msg) {
+    const el = document.getElementById('error-msg');
+    el.style.display = msg ? 'block' : 'none';
+    el.textContent = msg;
+  }
+
+  function formatTime(sec) {
+    const m = Math.floor(sec / 60);
+    const s = Math.floor(sec % 60);
+    return `${m}:${String(s).padStart(2, '0')}`;
+  }
+
+  function escHtml(str) {
+    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  function renderMarkdown(text) {
+    // 간단한 마크다운 렌더 (bold, 줄바꿈)
+    return escHtml(text)
+      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+      .replace(/\*(.+?)\*/g, '<em>$1</em>')
+      .replace(/\n/g, '<br>');
+  }
+
+  // 엔터키로 제출
+  document.getElementById('url-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter') loadTranscript();
+  });
+
+  // 히스토리 — localStorage 기반
+  function historyGet() {
+    try { return JSON.parse(localStorage.getItem('yt_history') || '[]'); } catch { return []; }
+  }
+  function historySet(list) {
+    localStorage.setItem('yt_history', JSON.stringify(list.slice(0, 50)));
+  }
+  function historySaveItem(item) {
+    const list = historyGet().filter(h => h.video_id !== item.video_id);
+    list.unshift(item);
+    historySet(list);
+  }
+  function historyDelete(videoId) {
+    historySet(historyGet().filter(h => h.video_id !== videoId));
+  }
+
+  function loadHistory() {
+    const list = historyGet();
+    const panel = document.getElementById('history-panel');
+    const container = document.getElementById('history-list');
+    container.innerHTML = '';
+
+    if (!list.length) { panel.style.display = 'none'; return; }
+    panel.style.display = 'block';
+
+    list.forEach(item => {
+      const div = document.createElement('div');
+      div.className = 'history-item';
+      const thumb = `https://img.youtube.com/vi/${item.video_id}/mqdefault.jpg`;
+      const date = new Date(item.saved_at).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+      const tag = item.translated ? ' · AI 번역' : '';
+      div.innerHTML = `
+        <img class="history-thumb" src="${thumb}" alt="" onerror="this.style.display='none'">
+        <div class="history-info">
+          <div class="history-title">${escHtml(item.title || item.video_id)}</div>
+          <div class="history-meta">${date}${tag}</div>
+        </div>
+        <button class="history-del" title="삭제">✕</button>
+      `;
+      div.addEventListener('click', (e) => {
+        if (e.target.closest('.history-del')) return;
+        document.getElementById('url-input').value = `https://www.youtube.com/watch?v=${item.video_id}`;
+        loadTranscript();
+      });
+      div.querySelector('.history-del').addEventListener('click', (e) => {
+        e.stopPropagation();
+        historyDelete(item.video_id);
+        loadHistory();
+      });
+      container.appendChild(div);
+    });
+  }
+
+  // 페이지 로드 시 히스토리 표시
+  loadHistory();
+</script>
+</body>
+</html>
