@@ -48,7 +48,13 @@ async function fetchTranscript(videoId) {
   const captionTracks = playerData?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
 
   if (!captionTracks || captionTracks.length === 0) {
-    throw new Error('자막을 찾을 수 없습니다. 자막이 없는 영상입니다.');
+    const debugInfo = JSON.stringify({
+      hasPlayabilityStatus: !!playerData?.playabilityStatus,
+      status: playerData?.playabilityStatus?.status,
+      hasVideoDetails: !!playerData?.videoDetails,
+      hasCaptions: !!playerData?.captions,
+    });
+    throw new Error(`자막을 찾을 수 없습니다. [${debugInfo}]`);
   }
 
   // 영어 자막 우선
@@ -116,7 +122,7 @@ exports.handler = async (event) => {
   if (!videoId) return { statusCode: 400, body: JSON.stringify({ error: '올바른 YouTube URL이 아닙니다.' }) };
 
   try {
-    const { segments: rawSegments, langCode } = await fetchTranscript(videoId);
+    const { segments: rawSegments, langCode, debug } = await fetchTranscript(videoId);
 
     let segments = rawSegments;
     let translated = false;
