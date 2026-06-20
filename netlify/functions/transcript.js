@@ -26,19 +26,21 @@ async function fetchTranscript(videoId) {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36',
-      'X-YouTube-Client-Name': '1',
-      'X-YouTube-Client-Version': '2.20240101.00.00',
+      'User-Agent': 'com.google.android.youtube/19.09.37 (Linux; U; Android 11) gzip',
+      'X-YouTube-Client-Name': '3',
+      'X-YouTube-Client-Version': '19.09.37',
       'Accept-Language': 'en-US,en;q=0.9',
     },
     body: JSON.stringify({
       videoId,
       context: {
         client: {
-          clientName: 'WEB',
-          clientVersion: '2.20240101.00.00',
+          clientName: 'ANDROID',
+          clientVersion: '19.09.37',
+          androidSdkVersion: 30,
           hl: 'en',
           gl: 'US',
+          userAgent: 'com.google.android.youtube/19.09.37 (Linux; U; Android 11) gzip',
         }
       }
     })
