@@ -1,4 +1,3 @@
-const { YoutubeTranscript } = require('youtube-transcript');
 const Groq = require('groq-sdk');
 
 function extractVideoId(url) {
@@ -18,7 +17,65 @@ function extractVideoId(url) {
 function isEnglish(text) { return /[a-zA-Z]/.test(text); }
 
 function clean(text) {
-  return text.replace(/\n/g, ' ').replace(/&amp;/g, '&').replace(/&#39;/g, "'").replace(/&quot;/g, '"').trim();
+  return text
+    .replace(/\n/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&#39;/g, "'")
+    .replace(/&quot;/g, '"')
+    .replace(/\[Music\]/gi, '')
+    .replace(/\[Applause\]/gi, '')
+    .trim();
+}
+
+// YouTube 페이지에서 자막 직접 추출
+async function fetchTranscriptDirect(videoId) {
+  const headers = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    'Accept-Language': 'en-US,en;q=0.9',
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+  };
+
+  // 영어 자막 먼저, 없으면 기본
+  const langs = ['en', 'en-US', ''];
+
+  for (const lang of langs) {
+    try {
+      const watchUrl = `https://www.youtube.com/watch?v=${videoId}${lang ? `&hl=${lang}` : ''}`;
+      const res = await fetch(watchUrl, { headers });
+      const html = await res.text();
+
+      // ytInitialPlayerResponse 추출
+      const match = html.match(/ytInitialPlayerResponse\s*=\s*({.+?})\s*;/s);
+      if (!match) continue;
+
+      const playerResponse = JSON.parse(match[1]);
+      const captionTracks = playerResponse?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
+      if (!captionTracks || captionTracks.length === 0) continue;
+
+      // 영어 자막 우선
+      let track = captionTracks.find(t => t.languageCode === 'en' || t.languageCode?.startsWith('en'));
+      if (!track) track = captionTracks[0];
+
+      const captionRes = await fetch(track.baseUrl + '&fmt=json3', { headers });
+      const captionData = await captionRes.json();
+
+      const segments = (captionData.events || [])
+        .filter(e => e.segs)
+        .map(e => ({
+          start: (e.tStartMs || 0) / 1000,
+          duration: (e.dDurationMs || 2000) / 1000,
+          text: clean(e.segs.map(s => s.utf8 || '').join('')),
+          lang: track.languageCode,
+        }))
+        .filter(s => s.text.length > 0);
+
+      return { segments, langCode: track.languageCode };
+    } catch (e) {
+      continue;
+    }
+  }
+
+  throw new Error('자막을 찾을 수 없습니다.');
 }
 
 async function translateToEnglish(segments) {
@@ -64,27 +121,16 @@ exports.handler = async (event) => {
   if (!videoId) return { statusCode: 400, body: JSON.stringify({ error: '올바른 YouTube URL이 아닙니다.' }) };
 
   try {
-    let transcript = null;
-    let isEng = false;
+    const { segments: rawSegments, langCode } = await fetchTranscriptDirect(videoId);
 
-    for (const lang of ['en', 'en-US', 'en-GB', 'en-AU']) {
-      try { transcript = await YoutubeTranscript.fetchTranscript(videoId, { lang }); isEng = true; break; } catch {}
-    }
-    if (!transcript) {
-      try { transcript = await YoutubeTranscript.fetchTranscript(videoId); } catch {
-        return { statusCode: 400, body: JSON.stringify({ error: '자막을 찾을 수 없습니다.' }) };
-      }
-    }
-
-    let segments = transcript.map(item => ({
-      start: Math.round(item.offset / 10) / 100,
-      duration: Math.round(item.duration / 10) / 100,
-      text: clean(item.text),
-    })).filter(s => s.text.length > 0);
-
+    let segments = rawSegments;
     let translated = false;
-    if (!isEng || segments.every(s => !isEnglish(s.text))) {
-      if (!process.env.GROQ_API_KEY) return { statusCode: 500, body: JSON.stringify({ error: 'GROQ_API_KEY가 설정되지 않았습니다.' }) };
+
+    // 영어가 아니면 번역
+    if (!langCode?.startsWith('en') || segments.every(s => !isEnglish(s.text))) {
+      if (!process.env.GROQ_API_KEY) {
+        return { statusCode: 500, body: JSON.stringify({ error: 'GROQ_API_KEY가 설정되지 않았습니다.' }) };
+      }
       segments = await translateToEnglish(segments);
       translated = true;
     }
@@ -97,6 +143,10 @@ exports.handler = async (event) => {
       body: JSON.stringify({ video_id: videoId, title, segments, translated }),
     };
   } catch (err) {
-    return { statusCode: 500, body: JSON.stringify({ error: '오류: ' + err.message }) };
+    return {
+      statusCode: 400,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ error: err.message }),
+    };
   }
 };
