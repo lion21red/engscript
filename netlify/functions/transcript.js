@@ -1,4 +1,5 @@
 const Groq = require('groq-sdk');
+const { Innertube } = require('youtubei.js');
 
 function extractVideoId(url) {
   const patterns = [
@@ -21,64 +22,25 @@ function clean(text) {
 }
 
 async function fetchTranscript(videoId) {
-  // InnerTube API로 자막 URL 가져오기
-  const playerRes = await fetch('https://www.youtube.com/youtubei/v1/player?key=AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'User-Agent': 'com.google.android.youtube/19.09.37 (Linux; U; Android 11) gzip',
-      'X-YouTube-Client-Name': '3',
-      'X-YouTube-Client-Version': '19.09.37',
-      'Accept-Language': 'en-US,en;q=0.9',
-    },
-    body: JSON.stringify({
-      videoId,
-      context: {
-        client: {
-          clientName: 'ANDROID',
-          clientVersion: '19.09.37',
-          androidSdkVersion: 30,
-          hl: 'en',
-          gl: 'US',
-          userAgent: 'com.google.android.youtube/19.09.37 (Linux; U; Android 11) gzip',
-        }
-      }
-    })
-  });
+  const yt = await Innertube.create({ retrieve_player: false });
+  const info = await yt.getInfo(videoId);
+  const transcriptData = await info.getTranscript();
 
-  const playerData = await playerRes.json();
-  const captionTracks = playerData?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
-
-  if (!captionTracks || captionTracks.length === 0) {
-    const debugInfo = JSON.stringify({
-      hasPlayabilityStatus: !!playerData?.playabilityStatus,
-      status: playerData?.playabilityStatus?.status,
-      hasVideoDetails: !!playerData?.videoDetails,
-      hasCaptions: !!playerData?.captions,
-    });
-    throw new Error(`자막을 찾을 수 없습니다. [${debugInfo}]`);
+  if (!transcriptData?.transcript?.content?.body?.initial_segments) {
+    throw new Error('자막을 찾을 수 없습니다.');
   }
 
-  // 영어 자막 우선
-  let track = captionTracks.find(t => t.languageCode === 'en' || t.languageCode?.startsWith('en'));
-  if (!track) track = captionTracks[0];
-
-  // 자막 내용 가져오기
-  const captionRes = await fetch(track.baseUrl + '&fmt=json3', {
-    headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
-  });
-  const captionData = await captionRes.json();
-
-  const segments = (captionData.events || [])
-    .filter(e => e.segs && e.segs.some(s => s.utf8?.trim()))
-    .map(e => ({
-      start: (e.tStartMs || 0) / 1000,
-      duration: (e.dDurationMs || 2000) / 1000,
-      text: clean(e.segs.map(s => s.utf8 || '').join('')),
+  const segments = transcriptData.transcript.content.body.initial_segments
+    .filter(s => s.snippet?.text)
+    .map(s => ({
+      start: (s.start_ms || 0) / 1000,
+      duration: ((s.end_ms || 0) - (s.start_ms || 0)) / 1000,
+      text: clean(s.snippet.text),
     }))
-    .filter(s => s.text.length > 0 && s.text !== '\n');
+    .filter(s => s.text.length > 0);
 
-  return { segments, langCode: track.languageCode };
+  const langCode = transcriptData.selectedLanguage?.languageCode || 'en';
+  return { segments, langCode };
 }
 
 async function translateToEnglish(segments) {
@@ -124,7 +86,7 @@ exports.handler = async (event) => {
   if (!videoId) return { statusCode: 400, body: JSON.stringify({ error: '올바른 YouTube URL이 아닙니다.' }) };
 
   try {
-    const { segments: rawSegments, langCode, debug } = await fetchTranscript(videoId);
+    const { segments: rawSegments, langCode } = await fetchTranscript(videoId);
 
     let segments = rawSegments;
     let translated = false;
