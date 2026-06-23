@@ -1,10 +1,10 @@
-const Groq = require('groq-sdk');
+const OpenAI = require('openai');
 
 exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') return { statusCode: 405, body: 'Method Not Allowed' };
 
-  if (!process.env.GROQ_API_KEY) {
-    return { statusCode: 500, body: JSON.stringify({ error: 'GROQ_API_KEY가 설정되지 않았습니다.' }) };
+  if (!process.env.OPENAI_API_KEY) {
+    return { statusCode: 500, body: JSON.stringify({ error: 'OPENAI_API_KEY가 설정되지 않았습니다.' }) };
   }
 
   const { sentence, context } = JSON.parse(event.body || '{}');
@@ -24,9 +24,9 @@ ${context ? `앞뒤 문맥: ${context}` : ''}
 간결하고 명확하게 작성해 주세요.`;
 
   try {
-    const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
-    const completion = await groq.chat.completions.create({
-      model: 'llama-3.1-8b-instant',
+    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
       max_tokens: 800,
       messages: [{ role: 'user', content: prompt }],
     });

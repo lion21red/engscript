@@ -3,6 +3,7 @@ const path = require('path');
 const fs = require('fs');
 const { YoutubeTranscript } = require('youtube-transcript');
 const Groq = require('groq-sdk');
+const OpenAI = require('openai');
 
 const app = express();
 const PORT = 3000;
@@ -206,8 +207,9 @@ app.delete('/api/history/:videoId', (req, res) => {
 });
 
 app.post('/api/explain', async (req, res) => {
-  if (!GROQ_API_KEY) {
-    return res.status(500).json({ error: 'GROQ_API_KEY 환경변수가 설정되지 않았습니다.' });
+  const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
+  if (!OPENAI_API_KEY) {
+    return res.status(500).json({ error: 'OPENAI_API_KEY 환경변수가 설정되지 않았습니다.' });
   }
 
   const { sentence, context } = req.body || {};
@@ -227,9 +229,9 @@ ${context ? `앞뒤 문맥: ${context}` : ''}
 간결하고 명확하게 작성해 주세요.`;
 
   try {
-    const groq = new Groq({ apiKey: GROQ_API_KEY });
-    const completion = await groq.chat.completions.create({
-      model: 'llama-3.1-8b-instant',
+    const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
       max_tokens: 800,
       messages: [{ role: 'user', content: prompt }],
     });
